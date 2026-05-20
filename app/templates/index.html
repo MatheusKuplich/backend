@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loja - Painel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <header class="topo">
+    <h1>Loja Star Wars</h1>
+    <p class="subtitulo">Consumindo a API <code>/api/...</code></p>
+  </header>
+
+  <nav class="abas">
+    <button class="aba ativa" data-tipo="categorias">Categorias</button>
+    <button class="aba" data-tipo="produtos">Produtos</button>
+    <button class="aba" data-tipo="clientes">Clientes</button>
+  </nav>
+
+  <main class="conteudo">
+    <section id="painel-formulario">
+      <h2 id="titulo-formulario">Novo professor</h2>
+      <form id="formulario" novalidate>
+        <div id="campos" class="grade-campos"></div>
+        <div class="acoes-formulario">
+          <button type="submit" class="botao-primario">Cadastrar</button>
+          <span id="mensagem-formulario" class="mensagem"></span>
+        </div>
+      </form>
+    </section>
+
+    <section id="painel-tabela">
+      <div class="cabecalho-painel">
+        <h2 id="titulo-lista">Produtos</h2>
+        <button id="botao-recarregar" type="button">Recarregar</button>
+      </div>
+      <div id="status" class="status"></div>
+      <table id="tabela">
+        <thead><tr id="cabecalho"></tr></thead>
+        <tbody id="corpo"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
