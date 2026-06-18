@@ -4,12 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Loja - Painel</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=2" />
 </head>
 <body>
   <header class="topo">
-    <h1>Loja Star Wars</h1>
-    <p class="subtitulo">Consumindo a API <code>/api/...</code></p>
+    <h1>UniExp SW</h1>
+    <a class="navbar-brand" href="{{ url_for('paginas.home_page') }}" style="color: #123456">Home</a>
+    <p class="subtitulo"><code>/api/...</code></p>
   </header>
 
   <nav class="abas">

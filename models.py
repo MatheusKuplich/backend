@@ -1,7 +1,14 @@
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String, Table
 from sqlalchemy.orm import relationship
 
 from database import Base
+
+# Tabela de associação Cliente-Produto
+cliente_produto = Table(
+    'cliente_produto', Base.metadata,
+    Column('cliente_id', Integer, ForeignKey('clientes.id'), primary_key=True),
+    Column('produto_id', Integer, ForeignKey('produtos.id'), primary_key=True)
+)
 
 
 # Categoria de produtos Star Wars
@@ -10,12 +17,12 @@ class Categoria(Base):
 
     id = Column(Integer, primary_key=True)
     nome = Column(String(120), nullable=False)
-    email = Column(String(120), unique=True, nullable=True)
+    # email = Column(String(120), unique=True, nullable=True)
 
     produtos = relationship("Produto", back_populates="categoria")
 
     def to_dict(self):
-        return {"id": self.id, "nome": self.nome, "email": self.email}
+        return {"id": self.id, "nome": self.nome}
 
     def __repr__(self):
         return f"<Categoria {self.id} {self.nome!r}>"
@@ -31,7 +38,11 @@ class Produto(Base):
     categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=False)
 
     categoria = relationship("Categoria", back_populates="produtos")
-    clientes = relationship("Cliente", back_populates="produto")
+    clientes = relationship(
+        "Cliente",
+        secondary=cliente_produto,
+        back_populates="produtos"
+    )
 
     def to_dict(self):
         return {
@@ -53,16 +64,19 @@ class Cliente(Base):
     id = Column(Integer, primary_key=True)
     nome = Column(String(120), nullable=False)
     email = Column(String(120), unique=True, nullable=True)
-    produto_id = Column(Integer, ForeignKey("produtos.id"), nullable=False)
 
-    produto = relationship("Produto", back_populates="clientes")
+    produtos = relationship(
+        "Produto",
+        secondary=cliente_produto,
+        back_populates="clientes"
+    )
 
     def to_dict(self):
         return {
             "id": self.id,
             "nome": self.nome,
             "email": self.email,
-            "produto_id": self.produto_id,
+            "produtos": [produto.id for produto in self.produtos],
         }
 
     def __repr__(self):
