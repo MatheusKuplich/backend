@@ -4,10 +4,58 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UniExp SW - Home</title>
+  <title>Mercado StarWars - Colecionáveis e Réplicas</title>
+  <meta name="description" content="Mercado StarWars: Action figures, réplicas, posters, mídias e tudo para colecionadores. Encontre produtos de Star Wars com os melhores preços.">
+  <meta property="og:title" content="Mercado StarWars">
+  <meta property="og:description" content="Colecionáveis e réplicas de Star Wars">
+  <meta property="og:image" content="{{ url_for('static', filename='img/hero-starwars.svg') }}">
+  <meta property="og:url" content="{{ request.url }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=2" />
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Mercado StarWars",
+    "url": "{{ request.url_root }}",
+    "description": "Loja de colecionáveis e produtos Star Wars",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": {
+        "@type": "EntryPoint",
+        "@url": "{{ request.url_root }}home?q={search_term_string}"
+      },
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+  {% if produtos_destaque %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "itemListElement": [
+      {% for produto in produtos_destaque %}
+      {
+        "@type": "Product",
+        "position": {{ loop.index }},
+        "name": "{{ produto.nome }}",
+        "image": "{{ produto.imagem or url_for('static', filename='img/products/placeholder.svg') }}",
+        "description": "Código: {{ produto.codigo }}",
+        "offers": {
+          "@type": "Offer",
+          "priceCurrency": "BRL",
+          "price": "{{ produto.preco or 'N/A' }}"
+        }
+      }{% if not loop.last %},{% endif %}
+      {% endfor %}
+    ]
+  }
+  </script>
+  {% endif %}
 </head>
 
 <body>
@@ -33,11 +81,24 @@
   <header class="topo">
     <div class="container d-flex align-items-center justify-content-between">
       <div class="d-flex align-items-center">
-        <img src="../img/" id="img" height="60" width="110" alt="logo" style="margin-right:12px">
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" id="img" height="60" width="110" alt="logo" style="margin-right:12px">
         <h1 style="margin:0">UniExp SW</h1>
       </div>
       <p class="subtitulo"><code>/api/...</code></p>
-      <a class="btn btn-entrar" href="{{ url_for('paginas.cadastro_page') }}">Entrar</a>
+      <div class="d-flex gap-2 align-items-center">
+        <button id="btn-abrir-carrinho" class="btn btn-outline-primary">
+          🛒 Carrinho (<span id="badge-carrinho">0</span>)
+        </button>
+        {% if session.get('cliente_nome') %}
+          {% if session.get('is_admin') %}
+            <a class="btn btn-outline-warning btn-sm" href="{{ url_for('admin.admin_page') }}">Painel Admin</a>
+          {% endif %}
+          <a class="btn btn-entrar" href="{{ url_for('paginas.home_page') }}">Olá, {{ session.get('cliente_nome') }}</a>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('paginas.logout_page') }}">Sair</a>
+        {% else %}
+          <a class="btn btn-entrar" href="{{ url_for('paginas.cadastro_page') }}">Entrar</a>
+        {% endif %}
+      </div>
     </div>
   </header>
   <nav class="navbar navbar-expand-lg navbar-light bg-light">
@@ -52,9 +113,7 @@
           <li class="nav-item">
             <a class="nav-link active" aria-current="page" href="../templates/" style="color: #000000"></a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('paginas.cadastro_page') }}" style="color: #000000">Cadastre-se</a>
-          </li>
+          
           
 
         </ul>
@@ -67,50 +126,114 @@
   </nav>
   <main>
     <div class="div2">
-    <div id="carouselExampleFade" class="carousel slide carousel-fade" data-bs-ride="carousel">
-      <div class="carousel-inner">
-        <div class="carousel-item active">
-          <img src="../img/" class="d-block w-100" width="500px" height="700px">
+      <!-- HERO -->
+      <section class="hero text-white" style="background-image: url('{{ url_for('static', filename='img/hero-starwars.svg') }}'); background-size:cover; background-position:center; padding: 60px 0;">
+        <div class="container">
+          <div class="row align-items-center">
+            <div class="col-md-7">
+              <h1 class="display-5">Bem-vindo ao UniExp SW</h1>
+              <p class="lead">Action figures, réplicas, posters e tudo para colecionadores — encontre raridades e ofertas.</p>
+              <form id="search-form" action="{{ url_for('paginas.home_page') }}" method="get" class="mt-3">
+                <div class="input-group input-group-lg">
+                  <input id="search-input" name="q" type="search" class="form-control" placeholder="Buscar por produto, personagem ou referência..." aria-label="Buscar">
+                  <button class="btn btn-primary" type="submit">Buscar</button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
-        <div class="carousel-item">
-          <img src="../Img/" class="d-block w-100" width="500px" height="700px">
+      </section>
+
+      <!-- CATEGORIAS -->
+      <div class="container my-4">
+        <div class="d-flex overflow-auto gap-3 py-2 categorias-scroll">
+          {% for cat in categorias_principais %}
+            <a class="categoria-item text-center" href="#">
+              <img src="{{ url_for('static', filename='img/categories/' ~ (cat.nome|lower|replace(' ', '-') ~ '.svg')) }}" alt="{{ cat.nome }}" width="64" height="64" onerror="this.src='{{ url_for('static', filename='img/category-placeholder.svg') }}'">
+              <div class="small mt-1">{{ cat.nome }}</div>
+            </a>
+          {% endfor %}
         </div>
-        <div class="carousel-item">
-          <img src="../Img/" class="d-block w-100" width="500px" height="700px">
+      </div>
+
+      <!-- DESTAQUES -->
+      <div class="container my-4">
+        <h3>Destaques</h3>
+        <div class="row" id="produtos-destaque">
+          {% if produtos_destaque %}
+            {% for p in produtos_destaque %}
+              <div class="col-6 col-md-4 col-lg-3 mb-4">
+                <div class="card produto-card h-100">
+                    <a href="#">
+                    <img src="{{ p.imagem or url_for('static', filename='img/products/placeholder.svg') }}" class="card-img-top" alt="{{ p.nome }}" loading="lazy">
+                  </a>
+                  <div class="card-body d-flex flex-column">
+                    <h6 class="card-title text-truncate">{{ p.nome }}</h6>
+                    <p class="price mb-2">{% if p.preco %}R$ {{ '%.2f'|format(p.preco) }}{% else %}—{% endif %}</p>
+                    <div class="mt-auto d-flex gap-2">
+                      <button class="btn btn-outline-primary btn-sm flex-grow-1 btn-ver-produto" data-id="{{ p.id }}" data-bs-toggle="modal" data-bs-target="#modalProduto">Ver</button>
+                      <button class="btn btn-primary btn-sm btn-comprar" data-id="{{ p.id }}">Comprar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="col-12">Nenhum destaque encontrado.</div>
+          {% endif %}
         </div>
-    </div>
-        <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleFade" data-bs-slide="prev">
-          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-          <span class="visually-hidden">Previous</span>
-        </button>
-        <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleFade" data-bs-slide="next">
-          <span class="carousel-control-next-icon" aria-hidden="true"></span>
-          <span class="visually-hidden">Next</span>
-        </button>
+      </div>
+
+      <!-- Filtros (simples) -->
+      <div class="container my-4">
+        <h4>Filtrar por Categoria</h4>
+        <div id="filtro-categorias" class="d-flex gap-2 flex-wrap mb-4"></div>
+      </div>
+
+      <!-- Mais Produtos / Pagination -->
+      <div class="container my-4">
+        <h3>Mais Produtos</h3>
+        <div class="row" id="produtos-lista">
+          <div class="col-12 text-center">Carregando...</div>
+        </div>
+        <nav aria-label="Paginação" class="mt-4">
+          <ul class="pagination justify-content-center" id="paginacao"></ul>
+        </nav>
+      </div>
+  </main>
+
+  <!-- Quick-view Modal -->
+  <div class="modal fade" id="modalProduto" tabindex="-1" aria-labelledby="modalProdutoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalProdutoLabel">Detalhes do Produto</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <img id="modal-imagem" src="" alt="Produto" class="img-fluid">
+            </div>
+            <div class="col-md-6">
+              <h4 id="modal-nome"></h4>
+              <p id="modal-preco" class="h5 text-success"></p>
+              <p id="modal-categoria" class="text-muted"></p>
+              <div class="mb-3">
+                <label for="modal-quantidade" class="form-label">Quantidade:</label>
+                <input type="number" id="modal-quantidade" class="form-control" value="1" min="1" max="999">
+              </div>
+              <p id="modal-descricao" class="text-secondary"></p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+          <button type="button" class="btn btn-primary" id="modal-comprar-btn">Comprar (1 un.)</button>
         </div>
       </div>
     </div>
   </div>
-
-  <div class="div2">
-        <br>
-        <h3>Sobre nós</h3>
-        <br>
-        <p style="text-align: justify;">
-            Proporcionamos entretenimento de qualidade aos nossos clientes,<br>
-            oferecendo um catálogo de filmes clássicos e lançamentos,<br>
-            com atendimento rápido e acessível. Assim, Facilitando o acesso a um "cinema em casa" para todos, permitindo que os usuários<br>
-            encontrem e aluguem seus filmes ,mais desejados, de forma simples<br>
-            e prática através do nosso site.
-        <br>
-        <br>
-        <br>
-            Ajude-nos a expandir o nosso catálogo, alcançar mais clientes<br>
-            e tornar nossa locadora uma referência no cenário atual de filmes<br>
-            online.
-        </p>
-    </div>
-  </main>
   <footer>
     <div class="container2">
       <div class="item2">
@@ -121,9 +244,9 @@
       </div>     
       <div class="item2" style="text-align: center;">
         <p>Siga-nos nas Redes Sociais:</p>
-        <a href="https://www.instagram.com"><img src="../Img/instagram.png" width="50px" height="45px"></a>
-        <a href="https://www.linkedin.com"><img src="../Img/linkedin.png" width="50px" height="45px"></a>
-        <a href="https://www.Facebook.com"><img src="../Img/facebook.png" width="50px" height="45px"></a> <br><br><br><br><br>  
+        <a href="https://www.instagram.com"><img src="{{ url_for('static', filename='img/social/instagram.svg') }}" width="50px" height="45px"></a>
+        <a href="https://www.linkedin.com"><img src="{{ url_for('static', filename='img/social/linkedin.svg') }}" width="50px" height="45px"></a>
+        <a href="https://www.Facebook.com"><img src="{{ url_for('static', filename='img/social/facebook.svg') }}" width="50px" height="45px"></a> <br><br><br><br><br>  
         <copy style="text-align: center;">©2026. Todos os Direitos Reservados.</copy>       
       </div>
       <div class="item2" style="text-align: center;">
@@ -131,6 +254,46 @@
       </div>        
     </div>
   </footer>
+
+  <!-- Modal de Carrinho -->
+  <div class="modal fade" id="modal-carrinho" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Seu Carrinho</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="carrinho-vazio" class="alert alert-info">
+            Seu carrinho está vazio. <a href="{{ url_for('paginas.home_page') }}">Continue comprando</a>.
+          </div>
+          <table id="carrinho-tabela" class="table table-striped" style="display: none;">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Preço</th>
+                <th>Quantidade</th>
+                <th>Subtotal</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody id="carrinho-itens"></tbody>
+          </table>
+          <div id="carrinho-total" class="text-end mt-3" style="display: none;">
+            <h5>Total: R$ <span id="total-valor">0.00</span></h5>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Continuar Comprando</button>
+          <button type="button" id="btn-limpar-carrinho" class="btn btn-warning">Limpar Carrinho</button>
+          <button type="button" id="btn-checkout" class="btn btn-success" disabled>Finalizar Compra</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='carrinho.js') }}"></script>
+  <script src="{{ url_for('static', filename='home.js') }}"></script>
 </body>
 
 </html>

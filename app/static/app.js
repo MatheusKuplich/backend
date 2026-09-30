@@ -45,13 +45,19 @@ const elementoTituloFormulario = document.getElementById("titulo-formulario");
 const elementoCabecalho = document.getElementById("cabecalho");
 const elementoCorpo = document.getElementById("corpo");
 const elementoCampos = document.getElementById("campos");
+const elementoContadorRegistros = document.getElementById("contador-registros");
 const formulario = document.getElementById("formulario");
 const mensagemFormulario = document.getElementById("mensagem-formulario");
 const botaoRecarregar = document.getElementById("botao-recarregar");
+const filtroBusca = document.getElementById("filtro-busca");
 const abas = document.querySelectorAll(".aba");
 
 let tipoAtual = "categorias";
 let categoriasCache = [];
+let produtosCache = [];
+let termoBusca = "";
+let chaveOrdenacao = "id";
+let direcaoOrdenacao = "asc";
 
 async function buscar(tipo) {
   const resposta = await fetch(`/api/${tipo}`);
@@ -79,9 +85,18 @@ async function carregar(tipo) {
     } catch (errCat) {
       categoriasCache = [];
     }
+
+    try {
+      produtosCache = await buscar('produtos');
+    } catch (errProd) {
+      produtosCache = [];
+    }
+
     const dados = await buscar(tipo);
-    await renderizarLinhas(tipo, dados);
+    const dadosVisiveis = aplicarBuscaEOrdenacao(tipo, dados);
+    await renderizarLinhas(tipo, dadosVisiveis);
     elementoStatus.textContent = `${dados.length} registro(s) carregado(s).`;
+    elementoContadorRegistros.textContent = `${dadosVisiveis.length} exibidos`;
   } catch (erro) {
     elementoStatus.textContent = `Falha ao carregar: ${erro.message}`;
     elementoStatus.classList.add("erro");
@@ -92,13 +107,92 @@ function renderizarCabecalho(tipo) {
   elementoCabecalho.innerHTML = "";
   for (const coluna of COLUNAS[tipo]) {
     const th = document.createElement("th");
+    th.className = "ordenavel";
+    th.dataset.chave = coluna.chave;
     th.textContent = coluna.titulo;
+    th.addEventListener("click", () => alternarOrdenacao(coluna.chave));
     elementoCabecalho.appendChild(th);
   }
   // coluna de ações
   const thAcoes = document.createElement("th");
   thAcoes.textContent = "Ações";
   elementoCabecalho.appendChild(thAcoes);
+}
+
+function alternarOrdenacao(chave) {
+  if (chaveOrdenacao === chave) {
+    direcaoOrdenacao = direcaoOrdenacao === "asc" ? "desc" : "asc";
+  } else {
+    chaveOrdenacao = chave;
+    direcaoOrdenacao = "asc";
+  }
+
+  carregar(tipoAtual);
+}
+
+function buscarTexto(valor) {
+  if (valor === null || valor === undefined) return "";
+  return String(valor).toLowerCase();
+}
+
+function aplicarBuscaEOrdenacao(tipo, dados) {
+  const dadosFiltrados = dados.filter((item) => {
+    if (!termoBusca) return true;
+
+    const produtosTexto = Array.isArray(item.produtos)
+      ? item.produtos.map((produtoId) => {
+          const produto = produtosCache.find(p => String(p.id) === String(produtoId));
+          return produto ? `${produto.nome} ${produto.codigo}` : `ID ${produtoId}`;
+        }).join(" ")
+      : "";
+
+    const textoBase = [
+      item.id,
+      item.nome,
+      item.codigo,
+      item.email,
+      item.categoria_id,
+      produtosTexto,
+    ]
+      .map(buscarTexto)
+      .join(" ");
+
+    return textoBase.includes(termoBusca);
+  });
+
+  const chave = chaveOrdenacao || "id";
+  const direcao = direcaoOrdenacao === "desc" ? -1 : 1;
+
+  return dadosFiltrados.sort((a, b) => {
+    const valorA = obterValorParaOrdenacao(tipo, a, chave);
+    const valorB = obterValorParaOrdenacao(tipo, b, chave);
+
+    if (valorA === valorB) return 0;
+    if (valorA === null || valorA === undefined) return 1;
+    if (valorB === null || valorB === undefined) return -1;
+
+    if (typeof valorA === "number" && typeof valorB === "number") {
+      return (valorA - valorB) * direcao;
+    }
+
+    return String(valorA).localeCompare(String(valorB), undefined, { numeric: true }) * direcao;
+  });
+}
+
+function obterValorParaOrdenacao(tipo, item, chave) {
+  if (tipo === "produtos" && chave === "categoria_id") {
+    const categoria = categoriasCache.find(c => String(c.id) === String(item.categoria_id));
+    return categoria ? categoria.nome : item.categoria_id;
+  }
+
+  if (tipo === "clientes" && chave === "produtos") {
+    if (Array.isArray(item.produtos) && item.produtos.length > 0) {
+      return item.produtos.length;
+    }
+    return 0;
+  }
+
+  return item[chave];
 }
 
 async function renderizarLinhas(tipo, dados) {
@@ -124,7 +218,11 @@ async function renderizarLinhas(tipo, dados) {
         td.textContent = cat ? cat.nome : (valor === null || valor === undefined ? "—" : valor);
       } else if (tipo === "clientes" && coluna.chave === "produtos") {
         if (Array.isArray(valor) && valor.length > 0) {
-          td.textContent = valor.join(", ");
+          const nomesProdutos = valor.map((produtoId) => {
+            const produto = produtosCache.find(p => String(p.id) === String(produtoId));
+            return produto ? `${produto.nome} (${produto.codigo})` : `ID ${produtoId}`;
+          });
+          td.textContent = nomesProdutos.join(", ");
         } else {
           td.textContent = "—";
         }
@@ -161,7 +259,7 @@ async function renderizarFormulario(tipo) {
   // Separar campos comuns dos produtos
   let fieldsetProdutos = null;
   for (const campo of CAMPOS[tipo]) {
-    // Se for o campo de produtos_ids, criar um fieldset separado
+    // Se for o campo de produtos_ids, criar um fieldset separado com busca e seleção por checkbox
     if (campo.nome === "produtos_ids") {
       fieldsetProdutos = document.createElement("fieldset");
       fieldsetProdutos.className = "campo campo-produtos";
@@ -169,28 +267,51 @@ async function renderizarFormulario(tipo) {
       legend.textContent = campo.rotulo + (campo.obrigatorio ? " *" : "");
       fieldsetProdutos.appendChild(legend);
 
-      const select = document.createElement("select");
-      select.id = `campo-${campo.nome}`;
-      select.name = campo.nome;
-      select.multiple = true;
-      if (campo.obrigatorio) select.required = true;
+      const buscaProdutos = document.createElement("input");
+      buscaProdutos.type = "search";
+      buscaProdutos.className = "busca-produtos";
+      buscaProdutos.placeholder = "Buscar produto por nome ou código";
+      fieldsetProdutos.appendChild(buscaProdutos);
+
+      const listaProdutos = document.createElement("div");
+      listaProdutos.className = "lista-produtos";
 
       try {
         const itens = await buscar(campo.origem);
         for (const item of itens) {
-          const option = document.createElement("option");
-          option.value = item.id;
-          option.textContent = rotuloItem(campo.origem, item);
-          select.appendChild(option);
+          const label = document.createElement("label");
+          label.className = "opcao-produto";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.name = campo.nome;
+          checkbox.value = item.id;
+          checkbox.dataset.texto = `${item.codigo} ${item.nome}`.toLowerCase();
+
+          const span = document.createElement("span");
+          span.textContent = rotuloItem(campo.origem, item);
+
+          label.appendChild(checkbox);
+          label.appendChild(span);
+          listaProdutos.appendChild(label);
         }
       } catch (erro) {
-        const option = document.createElement("option");
-        option.disabled = true;
-        option.textContent = `Erro ao carregar: ${erro.message}`;
-        select.appendChild(option);
+        const aviso = document.createElement("p");
+        aviso.className = "aviso-produtos";
+        aviso.textContent = `Erro ao carregar: ${erro.message}`;
+        listaProdutos.appendChild(aviso);
       }
 
-      fieldsetProdutos.appendChild(select);
+      buscaProdutos.addEventListener("input", () => {
+        const termo = buscaProdutos.value.trim().toLowerCase();
+        const linhas = listaProdutos.querySelectorAll(".opcao-produto");
+        linhas.forEach((linha) => {
+          const textoLinha = linha.querySelector("input").dataset.texto || "";
+          linha.style.display = textoLinha.includes(termo) ? "flex" : "none";
+        });
+      });
+
+      fieldsetProdutos.appendChild(listaProdutos);
       elementoCampos.appendChild(fieldsetProdutos);
       continue;
     }
@@ -270,11 +391,12 @@ function iniciarEdicao(tipo, item) {
     const elemento = formulario.elements[campo.nome];
     if (!elemento) continue;
     if (campo.tipo === "multiselect") {
-      // Preencher múltipla seleção
       const valores = item[campo.nome] || [];
-      for (const option of elemento.options) {
-        option.selected = valores.includes(Number(option.value)) || valores.includes(option.value);
-      }
+      const listaCheckboxes = formulario.querySelectorAll(`input[name="${campo.nome}"]`);
+      listaCheckboxes.forEach((checkbox) => {
+        const selecionado = valores.includes(Number(checkbox.value)) || valores.includes(checkbox.value);
+        checkbox.checked = selecionado;
+      });
     } else {
       elemento.value = item[campo.nome] === null || item[campo.nome] === undefined ? "" : item[campo.nome];
     }
@@ -301,11 +423,12 @@ async function enviarFormulario(evento) {
   for (const campo of CAMPOS[tipoAtual]) {
     const elemento = formulario.elements[campo.nome];
     if (campo.tipo === "multiselect") {
-      const valores = Array.from(elemento.selectedOptions).map(opt => opt.value);
+      const valores = Array.from(formulario.querySelectorAll(`input[name="${campo.nome}"]:checked`)).map((checkbox) => checkbox.value);
       if (campo.obrigatorio && valores.length === 0) {
         mensagemFormulario.textContent = `Selecione ao menos um ${campo.rotulo}.`;
         mensagemFormulario.classList.add("erro");
-        elemento.focus();
+        const primeiroCampo = formulario.querySelector(`input[name="${campo.nome}"]`);
+        if (primeiroCampo) primeiroCampo.focus();
         return;
       }
       dados[campo.nome] = valores;
@@ -317,6 +440,17 @@ async function enviarFormulario(evento) {
         elemento.focus();
         return;
       }
+
+      if (campo.tipo === "email" && valor !== "") {
+        const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor);
+        if (!emailValido) {
+          mensagemFormulario.textContent = `Informe um e-mail válido em ${campo.rotulo}.`;
+          mensagemFormulario.classList.add("erro");
+          elemento.focus();
+          return;
+        }
+      }
+
       if (valor !== "") dados[campo.nome] = valor;
     }
   }
@@ -361,5 +495,9 @@ abas.forEach((aba) => {
 
 botaoRecarregar.addEventListener("click", () => carregar(tipoAtual));
 formulario.addEventListener("submit", enviarFormulario);
+filtroBusca.addEventListener("input", (evento) => {
+  termoBusca = evento.target.value.trim().toLowerCase();
+  carregar(tipoAtual);
+});
 
 carregar("categorias");

@@ -17,9 +17,10 @@ def create_app():
     
     Base.metadata.create_all(engine)
 
-    from app.routes import bp as api_bp, paginas as paginas_bp
+    from app.routes import bp as api_bp, paginas as paginas_bp, admin as admin_bp
 
     app.register_blueprint(api_bp)
     app.register_blueprint(paginas_bp)
+    app.register_blueprint(admin_bp)
 
     return app

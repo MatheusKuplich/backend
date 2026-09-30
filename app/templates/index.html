@@ -7,11 +7,53 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=2" />
 </head>
 <body>
+  <!-- VLIBRAS -->
+      <div vw class="enabled">
+            <div vw-access-button class="active"></div>
+            <div vw-plugin-wrapper>
+                    <div class="vw-plugin-top-wrapper"></div>
+                </div>
+          </div>
+      <!-- JS DO VLIBRAS -->
+     
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+     
+    <script>
+        new window.VLibras.Widget('https://vlibras.gov.br/app');
+    </script>
+      <!-- FIM DO VLIBRAS -->
   <header class="topo">
-    <h1>UniExp SW</h1>
-    <a class="navbar-brand" href="{{ url_for('paginas.home_page') }}" style="color: #123456">Home</a>
-    <p class="subtitulo"><code>/api/...</code></p>
+    <div class="d-flex align-items-center justify-content-between">
+      <div>
+        <h1>UniExp SW</h1>
+        <p class="subtitulo"><code>/api/...</code></p>
+      </div>
+      <a class="navbar-brand" href="{{ url_for('paginas.home_page') }}" style="color: #123456">Voltar para a loja</a>
+    </div>
   </header>
+
+  <section class="dashboard-metrics">
+    <div class="dashboard-card">
+      <h3>Clientes</h3>
+      <p>{{ total_clientes }}</p>
+    </div>
+    <div class="dashboard-card">
+      <h3>Produtos</h3>
+      <p>{{ total_produtos }}</p>
+    </div>
+    <div class="dashboard-card">
+      <h3>Pedidos</h3>
+      <p>{{ total_pedidos }}</p>
+    </div>
+    <div class="dashboard-card">
+      <h3>Vendas totais</h3>
+      <p>R$ {{ "%.2f" | format(total_vendas) }}</p>
+    </div>
+    <div class="dashboard-card">
+      <h3>Pedidos hoje</h3>
+      <p>{{ pedidos_hoje }}</p>
+    </div>
+  </section>
 
   <nav class="abas">
     <button class="aba ativa" data-tipo="categorias">Categorias</button>
@@ -22,7 +64,7 @@
   <main class="conteudo">
     <section id="painel-formulario">
       <h2 id="titulo-formulario">Novo professor</h2>
-      <form id="formulario" novalidate>
+      <form id="formulario">
         <div id="campos" class="grade-campos"></div>
         <div class="acoes-formulario">
           <button type="submit" class="botao-primario">Cadastrar</button>
@@ -33,8 +75,15 @@
 
     <section id="painel-tabela">
       <div class="cabecalho-painel">
-        <h2 id="titulo-lista">Produtos</h2>
+        <div class="cabecalho-titulo">
+          <h2 id="titulo-lista">Produtos</h2>
+          <span id="contador-registros" class="contador-registros"></span>
+        </div>
         <button id="botao-recarregar" type="button">Recarregar</button>
+      </div>
+      <div class="filtros-tabela">
+        <label class="sr-only" for="filtro-busca">Buscar</label>
+        <input id="filtro-busca" type="search" placeholder="Buscar registros..." aria-label="Buscar registros">
       </div>
       <div id="status" class="status"></div>
       <table id="tabela">

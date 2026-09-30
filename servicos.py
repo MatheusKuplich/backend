@@ -1,4 +1,6 @@
-from sqlalchemy import select
+import re
+
+from sqlalchemy import select, update
 
 from database import SessionLocal
 from models import Categoria, Produto, Cliente
@@ -54,10 +56,29 @@ def _texto_opcional(valor):
     texto = str(valor).strip()
     return texto or None
 
+
+def _email_valido(email):
+    if email is None:
+        return True
+
+    return bool(re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email))
+
+
+def listar_produtos_destaque(limit: int = 12):
+    session = SessionLocal()
+    try:
+        linhas = session.scalars(
+            select(Produto).where(Produto.destaque == True).limit(limit)
+        ).all()
+
+        return [p.to_dict() for p in linhas]
+    finally:
+        session.close()
+
 #================================================================================Teste Automatizado
 def cadastrar_categoria(dados):
     nome = _texto_obrigatorio(dados.get("nome"), "nome")
-    # email = _texto_opcional(dados.get("email"))
+    email = _texto_opcional(dados.get("email"))
 
     session = SessionLocal()
 
@@ -95,10 +116,18 @@ def cadastrar_produto(dados):
         if categoria is None:
             raise ValueError(f"Categoria {categoria_id} não encontrada.")
 
+        # opcional: preco, imagem, destaque
+        preco = dados.get("preco")
+        imagem = dados.get("imagem")
+        destaque = bool(dados.get("destaque", False))
+
         produto = Produto(
             nome=nome,
             codigo=codigo,
             categoria_id=categoria.id,
+            preco=float(preco) if preco is not None and preco != "" else None,
+            imagem=imagem,
+            destaque=destaque,
         )
 
         session.add(produto)
@@ -118,6 +147,9 @@ def cadastrar_produto(dados):
 def cadastrar_cliente(dados):
     nome = _texto_obrigatorio(dados.get("nome"), "nome")
     email = _texto_opcional(dados.get("email"))
+    if email is not None and not _email_valido(email):
+        raise ValueError("O campo 'email' deve conter um e-mail válido.")
+
     produtos_ids = dados.get("produtos_ids", [])
     if not isinstance(produtos_ids, list):
         raise ValueError("O campo 'produtos_ids' deve ser uma lista de IDs de produtos.")
@@ -179,8 +211,38 @@ def remover_categoria(categoria_id):
         if categoria is None:
             raise ValueError(f"Categoria {categoria_id} não encontrada.")
 
-        session.delete(categoria)
-        session.commit()
+        if getattr(categoria, "nome", None) == "Padrão":
+            raise ValueError("A categoria 'Padrão' não pode ser removida.")
+
+        # Se a categoria tem produtos, reatribuí-los a uma categoria "Padrão"
+        num_produtos = len(getattr(categoria, "produtos", None) or [])
+        if num_produtos > 0:
+            # Fechar e abrir nova sessão para evitar rastreamento confuso
+            session.expunge_all()
+            
+            # Procurar categoria "Padrão" em nova sessão
+            resultado = session.scalars(
+                select(Categoria).filter_by(nome="Padrão")
+            ).first()
+            categoria_padrao = resultado
+            
+            # Se não existir, criar
+            if categoria_padrao is None:
+                categoria_padrao = Categoria(nome="Padrão")
+                session.add(categoria_padrao)
+                session.commit()
+                session.refresh(categoria_padrao)
+            
+            # Reatribuir usando UPDATE SQL direto
+            stmt = update(Produto).where(Produto.categoria_id == int(categoria_id)).values(categoria_id=categoria_padrao.id)
+            session.execute(stmt)
+            session.commit()
+
+        # Atualizar referência da categoria (pode ter mudado)
+        categoria = session.get(Categoria, int(categoria_id))
+        if categoria:
+            session.delete(categoria)
+            session.commit()
 
         return None
 
@@ -235,6 +297,13 @@ def remover_produto(produto_id):
         if produto is None:
             raise ValueError(f"Produto {produto_id} não encontrado.")
 
+        # Remover associações com clientes antes de excluir o produto para
+        # evitar violação de restrições da tabela de associação.
+        if getattr(produto, "clientes", None) and len(produto.clientes) > 0:
+            produto.clientes = []
+            session.add(produto)
+            session.flush()
+
         session.delete(produto)
         session.commit()
 
@@ -251,6 +320,9 @@ def remover_produto(produto_id):
 def atualizar_cliente(cliente_id, dados):
     nome = _texto_obrigatorio(dados.get("nome"), "nome")
     email = _texto_opcional(dados.get("email"))
+    if email is not None and not _email_valido(email):
+        raise ValueError("O campo 'email' deve conter um e-mail válido.")
+
     produtos_ids = dados.get("produtos_ids", [])
     if not isinstance(produtos_ids, list):
         raise ValueError("O campo 'produtos_ids' deve ser uma lista de IDs de produtos.")
@@ -340,6 +412,13 @@ def remover_cliente(cliente_id):
         cliente = session.get(Cliente, int(cliente_id))
         if cliente is None:
             raise ValueError(f"Cliente {cliente_id} não encontrado.")
+
+        # Limpar associações com produtos antes de remover o cliente,
+        # para evitar erros de integridade na tabela de associação.
+        if getattr(cliente, "produtos", None) and len(cliente.produtos) > 0:
+            cliente.produtos = []
+            session.add(cliente)
+            session.flush()
 
         session.delete(cliente)
         session.commit()
